@@ -101,6 +101,7 @@ Recipe や ShoppingSession に所属しない、**買い物対象の同一性**�
 - 通常 UI では active な Session は最大1件
 - 状態は active / completed の2つ。捨てる買い物リストは保存せず削除する
 - completed な Session は過去の買い物として扱い、Session にコピーした内容（Recipe 名・倍率・分量など）をそのまま残す。Item は ItemId で参照するため、Item の表示名を固定するかは未確定（[未確定事項](#未確定事項)）
+- 進行中の Session では、Item の表示名の変更（rename）を反映する。Session は Item を ItemId で参照し、表示名はコピーしないため
 - 作成日時と完了日時を持つ。完了日時を持つのは completed の Session だけ。作成日時は Session を作った時点
 - Recipe を Session へ追加した後、元 Recipe の編集で自動同期しない
 - Session 内のデータは Session だけで完結させ、元 Recipe へ密結合させない
@@ -135,6 +136,7 @@ Recipe を Session へ追加するとき、Session 側へ必要な情報をコ�
 - 元 Recipe を編集しても既存 Session は変わらない
 - Recipe が後から削除・変更されても、進行中 Session の意味を壊さない
 - Session へコピーするのは、Recipe 名・追加時の倍率・倍率をかけた後の分量
+- Item は ItemId で参照し、表示名はコピーしない
 - Session 内の材料は倍率をかけた後の分量を持つ。Session 内で数量を直したときに、倍率をかける前の値か後の値かが曖昧にならないため
 - 元 Recipe の ID は Recipe 画面へ移動するためだけに持ち、それ以外で Recipe を参照しない
 - Session の編集を Recipe へ反映する機能を考えるときに、データ設計とあわせて見直す
