@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalTime::class)
+
 package com.example.recipe_deck.domain.shopping
 
 import com.example.recipe_deck.domain.amount.Amount
@@ -11,6 +13,8 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 
 class ShoppingSessionTest {
     private val greenOnion = SessionItem(SessionItemId("session-green-onion"), ItemId("green-onion"), manualAddition = null)
@@ -30,11 +34,28 @@ class ShoppingSessionTest {
         isExcluded = false,
     )
 
+    private val createdAt = Instant.parse("2026-10-04T10:00:00Z")
+
     private fun session(
+        state: SessionState = SessionState.Active,
         recipes: ImmutableList<SessionRecipe> = persistentListOf(),
         items: ImmutableList<SessionItem> = persistentListOf(),
     ) =
-        ShoppingSession(ShoppingSessionId("session-1"), SessionState.ACTIVE, recipes, items)
+        ShoppingSession(ShoppingSessionId("session-1"), state, createdAt, recipes, items)
+
+    @Test
+    fun 作成日時より後に完了したSessionを作れる() {
+        val completed = SessionState.Completed(completedAt = Instant.parse("2026-10-04T11:00:00Z"))
+
+        assertEquals(completed, session(state = completed).state)
+    }
+
+    @Test
+    fun 完了日時が作成日時より前のSessionは作れない() {
+        val completedBeforeCreation = SessionState.Completed(completedAt = Instant.parse("2026-10-04T09:00:00Z"))
+
+        assertFailsWith<IllegalArgumentException> { session(state = completedBeforeCreation) }
+    }
 
     @Test
     fun Recipe由来の材料と同じItemを手動でも追加できる() {
