@@ -22,9 +22,10 @@
 | モジュール | 内容 |
 |---|---|
 | `:app` | Android アプリ。現状は Android Studio の雛形のままで、`:shared:domain` には依存していない。CMP の構成への移行は未着手 |
-| `:shared:domain` | ドメイン層の KMP モジュール。ターゲットは JVM・iosArm64・iosSimulatorArm64。パッケージは `amount` / `item` / `recipe` / `shopping` |
+| `:shared:domain` | ドメイン層の KMP モジュール。ターゲットは JVM・iosArm64・iosSimulatorArm64。パッケージは `amount` / `item` / `recipe` / `shopping`。Repository の interface もここに置く |
+| `:shared:usecase` | UseCase の KMP モジュール。`:shared:domain` に依存し、ターゲットも同じ |
 
-`:shared:domain` の JVM 出力は 11 に固定している。
+`:shared:domain` と `:shared:usecase` の JVM 出力は 11 に固定している。
 Gradle を JDK 25 で動かしても、Java 11 でビルドしている `:app` から使えるようにするため。
 
 ## ドメイン層の方針
@@ -42,8 +43,9 @@ Gradle を JDK 25 で動かしても、Java 11 でビルドしている `:app` �
 
 - kotlinx-collections-immutable は 0.4.0 を使う。0.5 系は Kotlin 2.3 でビルドされていて、Kotlin 2.2 の iOS ターゲットでは読み込めないため
 - `kotlin.time.Instant` は Kotlin 2.2 では実験的 API のため、使うファイルごとに `@file:OptIn(ExperimentalTime::class)` を宣言する
+- `kotlin.uuid.Uuid` も同じく実験的 API のため、使うファイルごとに `@file:OptIn(ExperimentalUuidApi::class)` を宣言する
 
-Kotlin を 2.3 以降に上げるときに、この2点は見直せる。
+Kotlin を 2.3 以降に上げるときに、これらは見直せる。
 
 ## ドメイン構造
 
@@ -136,6 +138,26 @@ erDiagram
 主キーは (Recipe ID, Item ID) ではなく行の ID。
 1つの Recipe に同じ Item の行が複数ありうるため。
 
+## UseCase の方針
+
+- 操作ごとに1クラスにし、`suspend operator fun invoke` を1つだけ持つ。画面単位にはしない。画面の構成が変わっても UseCase を変えずに済むようにするため
+- ViewModel の `viewModelScope` から呼ぶ。CMP では iOS も共通コードの ViewModel から呼ぶので、Android と同じ形になる
+- UseCase の中ではスレッドを切り替えない。必要なら Repository の実装の中で切り替える
+- 結果は UseCase ごとの sealed interface で返し、成功と `Failure` に分ける。ViewModel は例外を catch せず、結果を UiState に変えるだけにする
+  - 失敗は理由ごとに `Failure` の下に型を用意し、UI が理由に合わせて表示を変えられるようにする。想定していない失敗も `Failure.Unexpected` として原因ごと返す
+  - UI で事前に検査していても、UseCase でも検査して失敗として返す
+  - 失敗の理由は、実際に起こるようになった時点で足す。ネットワークの失敗は、サーバーとの同期を入れるときに足す
+- Repository は `Result` で返し、UseCase の中で結果の sealed interface に変える。`CancellationException` は失敗として返さずに投げ直す
+- 名前の前後の空白を除くなど、入力の正規化は UseCase で行う
+- 下書き／利用可能のように、ユーザーが選んだ値は UI から受け取る
+
+## データ層の方針
+
+- Repository の interface は `:shared:domain` に置き、UseCase はそれだけに依存する。実装は保存先を決めるときに作る
+- ローカルとサーバーのどちらから読むかを切り替える層（Gateway）は、2つ目のデータ源（サーバーとの同期など）が実際に必要になったときに足す
+- Web 版はオンライン専用の想定で、ローカルに保存せずサーバーのデータを直接使う。そのため、Repository の実装はプラットフォームごとに変わりうる
+- ネットワークなど、data 層のライブラリから来る失敗を UseCase で区別するときは、domain に例外を定義し、data 層でその例外に変換する。UseCase をライブラリに依存させないため
+
 ## 実装の進め方
 
 トップダウンで、次の順に進める。
@@ -157,6 +179,7 @@ erDiagram
 15. Room や UI の詳細を実装に合わせて確定
 
 1〜3 と 6〜9 は、ドメインの型として実装済み。
+4 は、名前と状態を指定して Recipe を作る UseCase だけ実装済み。
 
 ## AI / ML
 
@@ -185,6 +208,7 @@ PoC は完了済み。
 実際に UseCase を1つずつ実装し、必要性が見えた時点で相談する。
 
 - Repository の分け方
+- ローカルの保存方式（Room KMP など）と、プラットフォームごとの Repository の実装
 - Room のテーブル・主キー・インデックス
 - 購入済みチェックの保存方法（SavedStateHandle、Room の別の場所など）。KMP / CMP / iOS の挙動も調べて決める。Android の SavedStateHandle は、ユーザーによるアプリの終了や端末の再起動では消える
 - 想定内の失敗の具体的な型
