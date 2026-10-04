@@ -1,12 +1,14 @@
 package com.example.recipe_deck.domain.recipe
 
+import kotlinx.collections.immutable.ImmutableList
+
 data class Recipe(
     val id: RecipeId,
     val name: String,
     val status: RecipeStatus,
     val photoRef: String?,
     val memo: String?,
-    val ingredients: List<RecipeIngredient>,
+    val ingredients: ImmutableList<RecipeIngredient>,
 ) {
     init {
         require(name.isNotBlank()) { "Recipe 名は空白だけにできない" }

@@ -1,10 +1,12 @@
 package com.example.recipe_deck.domain.shopping
 
+import kotlinx.collections.immutable.ImmutableList
+
 data class ShoppingSession(
     val id: ShoppingSessionId,
     val state: SessionState,
-    val recipes: List<SessionRecipe>,
-    val items: List<SessionItem>,
+    val recipes: ImmutableList<SessionRecipe>,
+    val items: ImmutableList<SessionItem>,
 ) {
     init {
         require(recipes.distinctBy { it.id }.size == recipes.size) { "同じ SessionRecipe が重複している" }

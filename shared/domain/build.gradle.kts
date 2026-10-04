@@ -14,6 +14,9 @@ kotlin {
     iosSimulatorArm64()
 
     sourceSets {
+        commonMain.dependencies {
+            api(libs.kotlinx.collections.immutable)
+        }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
         }

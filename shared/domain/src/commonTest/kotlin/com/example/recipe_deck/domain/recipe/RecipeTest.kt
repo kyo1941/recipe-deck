@@ -4,6 +4,8 @@ import com.example.recipe_deck.domain.amount.Amount
 import com.example.recipe_deck.domain.amount.AmountUnit
 import com.example.recipe_deck.domain.amount.Quantity
 import com.example.recipe_deck.domain.item.ItemId
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -13,7 +15,7 @@ class RecipeTest {
 
     private fun recipe(
         name: String = "麻婆豆腐",
-        ingredients: List<RecipeIngredient> = emptyList(),
+        ingredients: ImmutableList<RecipeIngredient> = persistentListOf(),
     ) = Recipe(
         id = RecipeId("mapo-tofu"),
         name = name,
@@ -35,7 +37,7 @@ class RecipeTest {
 
     @Test
     fun 同じItemを複数の材料行に持てる() {
-        val ingredients = listOf(
+        val ingredients = persistentListOf(
             RecipeIngredient(RecipeIngredientId("row-1"), greenOnion, Amount(Quantity.of(1, 2), AmountUnit.PIECE)),
             RecipeIngredient(RecipeIngredientId("row-2"), greenOnion, null),
         )
@@ -45,7 +47,7 @@ class RecipeTest {
 
     @Test
     fun 同じ材料行IDを重複して持てない() {
-        val ingredients = listOf(
+        val ingredients = persistentListOf(
             RecipeIngredient(RecipeIngredientId("row-1"), greenOnion, null),
             RecipeIngredient(RecipeIngredientId("row-1"), ItemId("tofu"), null),
         )

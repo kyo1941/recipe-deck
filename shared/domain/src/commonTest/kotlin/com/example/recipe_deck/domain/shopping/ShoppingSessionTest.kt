@@ -6,6 +6,8 @@ import com.example.recipe_deck.domain.amount.Multiplier
 import com.example.recipe_deck.domain.amount.Quantity
 import com.example.recipe_deck.domain.item.ItemId
 import com.example.recipe_deck.domain.recipe.RecipeId
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -18,7 +20,7 @@ class ShoppingSessionTest {
         sourceRecipeId = RecipeId("mapo-tofu"),
         recipeName = "麻婆豆腐",
         multiplier = Multiplier.of(2),
-        items = items.toList(),
+        items = persistentListOf(*items),
     )
 
     private fun requires(sessionItem: SessionItem, rowId: String = "row-1") = SessionRecipeItem(
@@ -28,14 +30,17 @@ class ShoppingSessionTest {
         isExcluded = false,
     )
 
-    private fun session(recipes: List<SessionRecipe> = emptyList(), items: List<SessionItem> = emptyList()) =
+    private fun session(
+        recipes: ImmutableList<SessionRecipe> = persistentListOf(),
+        items: ImmutableList<SessionItem> = persistentListOf(),
+    ) =
         ShoppingSession(ShoppingSessionId("session-1"), SessionState.ACTIVE, recipes, items)
 
     @Test
     fun Recipe由来の材料と同じItemを手動でも追加できる() {
         val greenOnionAlsoManual = greenOnion.copy(manualAddition = ManualAddition(amount = null))
 
-        val session = session(recipes = listOf(mapoTofu(requires(greenOnionAlsoManual))), items = listOf(greenOnionAlsoManual))
+        val session = session(recipes = persistentListOf(mapoTofu(requires(greenOnionAlsoManual))), items = persistentListOf(greenOnionAlsoManual))
 
         assertEquals(ManualAddition(amount = null), session.items.single().manualAddition)
     }
@@ -44,7 +49,7 @@ class ShoppingSessionTest {
     fun 数量なしの手動追加だけでSessionItemを持てる() {
         val manualOnly = greenOnion.copy(manualAddition = ManualAddition(amount = null))
 
-        assertEquals(listOf(manualOnly), session(items = listOf(manualOnly)).items)
+        assertEquals(persistentListOf(manualOnly), session(items = persistentListOf(manualOnly)).items)
     }
 
     @Test
@@ -52,7 +57,7 @@ class ShoppingSessionTest {
         val duplicated = SessionItem(SessionItemId("session-green-onion-2"), greenOnion.itemId, ManualAddition(amount = null))
 
         assertFailsWith<IllegalArgumentException> {
-            session(recipes = listOf(mapoTofu(requires(greenOnion))), items = listOf(greenOnion, duplicated))
+            session(recipes = persistentListOf(mapoTofu(requires(greenOnion))), items = persistentListOf(greenOnion, duplicated))
         }
     }
 
@@ -61,31 +66,31 @@ class ShoppingSessionTest {
         val tofu = SessionItem(greenOnion.id, ItemId("tofu"), ManualAddition(amount = null))
         val manualGreenOnion = greenOnion.copy(manualAddition = ManualAddition(amount = null))
 
-        assertFailsWith<IllegalArgumentException> { session(items = listOf(manualGreenOnion, tofu)) }
+        assertFailsWith<IllegalArgumentException> { session(items = persistentListOf(manualGreenOnion, tofu)) }
     }
 
     @Test
     fun 同じSessionRecipeのIDを重複して持てない() {
-        assertFailsWith<IllegalArgumentException> { session(recipes = listOf(mapoTofu(), mapoTofu())) }
+        assertFailsWith<IllegalArgumentException> { session(recipes = persistentListOf(mapoTofu(), mapoTofu())) }
     }
 
     @Test
     fun Sessionに無いSessionItemを材料行から参照できない() {
         assertFailsWith<IllegalArgumentException> {
-            session(recipes = listOf(mapoTofu(requires(greenOnion))), items = emptyList())
+            session(recipes = persistentListOf(mapoTofu(requires(greenOnion))), items = persistentListOf())
         }
     }
 
     @Test
     fun Recipe由来でも手動追加でもないSessionItemは持てない() {
-        assertFailsWith<IllegalArgumentException> { session(items = listOf(greenOnion)) }
+        assertFailsWith<IllegalArgumentException> { session(items = persistentListOf(greenOnion)) }
     }
 
     @Test
     fun 除外した材料行も参照としてSessionItemを支える() {
         val excluded = requires(greenOnion).copy(isExcluded = true)
 
-        assertEquals(listOf(greenOnion), session(recipes = listOf(mapoTofu(excluded)), items = listOf(greenOnion)).items)
+        assertEquals(persistentListOf(greenOnion), session(recipes = persistentListOf(mapoTofu(excluded)), items = persistentListOf(greenOnion)).items)
     }
 
     @Test
