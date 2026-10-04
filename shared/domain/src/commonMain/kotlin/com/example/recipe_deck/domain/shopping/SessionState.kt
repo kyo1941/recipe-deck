@@ -1,6 +1,12 @@
+@file:OptIn(ExperimentalTime::class)
+
 package com.example.recipe_deck.domain.shopping
 
-enum class SessionState {
-    ACTIVE,
-    COMPLETED,
+import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
+
+sealed interface SessionState {
+    data object Active : SessionState
+
+    data class Completed(val completedAt: Instant) : SessionState
 }
