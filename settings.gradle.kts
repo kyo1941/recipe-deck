@@ -24,3 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Recipe-Deck"
 include(":app")
+include(":shared:domain")
