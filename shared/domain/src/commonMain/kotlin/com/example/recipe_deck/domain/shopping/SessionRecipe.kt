@@ -13,6 +13,5 @@ data class SessionRecipe(
 ) {
     init {
         require(recipeName.isNotBlank()) { "Recipe 名は空白だけにできない" }
-        require(items.distinctBy { it.id }.size == items.size) { "同じ材料行が SessionRecipe に重複している" }
     }
 }

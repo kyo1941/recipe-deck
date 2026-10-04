@@ -99,7 +99,11 @@ class ShoppingSessionTest {
     }
 
     @Test
-    fun 同じ材料行IDをSessionRecipeに重複して持てない() {
-        assertFailsWith<IllegalArgumentException> { mapoTofu(requires(greenOnion, "row-1"), requires(greenOnion, "row-1")) }
+    fun 別々のSessionRecipeにまたがっても同じ材料行IDを重複して持てない() {
+        val friedRice = mapoTofu(requires(greenOnion, "row-1")).copy(id = SessionRecipeId("session-fried-rice"))
+
+        assertFailsWith<IllegalArgumentException> {
+            session(recipes = persistentListOf(mapoTofu(requires(greenOnion, "row-1")), friedRice), items = persistentListOf(greenOnion))
+        }
     }
 }
