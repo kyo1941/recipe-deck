@@ -10,6 +10,11 @@ data class Quantity private constructor(
         denominator = denominator.timesExact(other.denominator),
     )
 
+    operator fun times(multiplier: Multiplier): Quantity = of(
+        numerator = numerator.timesExact(multiplier.numerator),
+        denominator = denominator.timesExact(multiplier.denominator),
+    )
+
     companion object {
         fun of(numerator: Long, denominator: Long = 1): Quantity {
             require(numerator > 0) { "数量は正の値でなければならない: $numerator/$denominator" }
