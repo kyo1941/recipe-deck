@@ -219,6 +219,7 @@ PoC は完了済み。
 - Room のテーブル・主キー・インデックス
 - 購入済みチェックの保存方法（SavedStateHandle、Room の別の場所など）。KMP / CMP / iOS の挙動も調べて決める。Android の SavedStateHandle は、ユーザーによるアプリの終了や端末の再起動では消える
 - 想定内の失敗の具体的な型
+- Recipe の写真の扱い（[photo.md](photo.md)）
 - Repository の失敗の型を、Repository ごとにするかメソッドごとにするか。今は Repository ごとで、メソッドによって起こる失敗がずれてきたら分ける
 - Recipe を消す機能を作るとき、編集の保存で消された Recipe を作り直さないか。今は作成と同じ `save` で上書きするため
 - 何も変えずに保存したときも保存するか。今は常に保存する。サーバーとの同期を入れるときに見直す
