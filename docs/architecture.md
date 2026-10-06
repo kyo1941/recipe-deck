@@ -32,7 +32,7 @@ Gradle を JDK 25 で動かしても、Java 11 でビルドしている `:app` �
 
 - ドメインの型は、型と不変条件だけを持つ。操作は UseCase を作るときに必要な分だけ足す。先に決めたドメインが UseCase で変わるのは健全とみなす
 - 不変条件は生成時（コンストラクタや `of`）に検査し、不正な状態を作れないようにする
-- 想定内の失敗（入力不正など）は、検査ごとではなく製品上の意味が変わる単位で型（sealed interface）にまとめ、UseCase の戻り値として返す。ドメインの `require` は検査漏れに対する最後の防衛線で、そのメッセージで処理を分けない
+- UI に返す想定内の失敗（入力不正など）は、ドメインの型ではなく UseCase の結果の型（`:shared:usecase` に置く）で返す。Repository が返す失敗の型は domain に置く（「データ層の方針」）。分け方は「UseCase の方針」に従う。ドメインの `require` は検査漏れに対する最後の防衛線で、そのメッセージで処理を分けない
 - ID は文字列を包む値クラス。中身には UUID 文字列を入れる取り決めで、型では形式を検証しない。生成は UseCase 側で行う
 - 集約が持つ一覧は kotlinx-collections-immutable の `ImmutableList` で受け取る。渡した一覧を後から書き換えて不変条件を崩せないようにするため
 - 日時は `kotlin.time.Instant`。現在時刻は UseCase から渡し、ドメインの中では取得しない
@@ -144,13 +144,15 @@ erDiagram
 - ViewModel の `viewModelScope` から呼ぶ。CMP では iOS も共通コードの ViewModel から呼ぶので、Android と同じ形になる
 - UseCase の中ではスレッドを切り替えない。必要なら Repository の実装の中で切り替える
 - 結果は UseCase ごとの sealed interface で返す。ViewModel は例外を catch せず、結果を UiState に変えるだけにする
-  - 成功と失敗を分けずに、ユーザーから見た状況ごとに型を同じ並びで用意する（`Saved`・`NameRequired`・`RecipeNoLongerExists` など）。結果は成功か失敗かの2つに収まるとは限らないため
-  - 名前は状況を表し、画面にさせる動作（`ShowNameError` など）は名前にしない。何をするかは ViewModel が決める
-  - 理由を示せない失敗は `Unexpected` として原因ごと返す。理由を示した結果と区別できるように、汎用であることを名前で示す
+  - 成功と失敗で入れ子にせず、ユーザーから見た状況ごとの型を、1つの sealed interface の直下に並べる（`Saved`・`NameRequired`・`RecipeNoLongerExists` など）。Repository の失敗は技術的な分類、UseCase の結果はユーザーにとっての意味で分けるので、`Outcome` では包まない
+  - 名前は状況を表し、画面にさせる動作（`ShowNameError` など）は名前にしない。画面の構成が変わっても UseCase を変えずに済むよう、何をするかは ViewModel が決める
+  - UseCase が理由ごとの結果を用意していない失敗は `Unexpected` として原因ごと返す。理由を示した結果と区別できるよう、汎用の受け皿であることを名前で示す
+  - 結果の型は、UseCase と同じファイルに置く
   - UI で事前に検査していても、UseCase でも検査して失敗として返す
   - 失敗の理由は、実際に起こるようになった時点で足す。ネットワークの失敗は、サーバーとの同期を入れるときに足す
-- Repository の失敗のうち、どれを拾い、どれとどれを同じとみなし、どれを `Unexpected` に落とすかは UseCase が決める
-- 名前とメモの前後の空白を除き、空白だけのメモはメモなしにするなど、入力の正規化は UseCase で行う
+- Repository の失敗のうち、どれを拾い、どれとどれを同じとみなし、どれを `Unexpected` に落とすかは UseCase が決める。変換の `when` に `else` を置かず、Repository の失敗の種類が増えたらビルドで分かるようにする
+- キャンセル（`CancellationException`）は UseCase では扱わない
+- 名前とメモの前後の空白を除き、空白だけのメモはメモなし（`null`）にするなど、入力の正規化は UseCase で行う
 - 下書き／利用可能のように、ユーザーが選んだ値は UI から受け取る
 
 ## データ層の方針
@@ -158,10 +160,10 @@ erDiagram
 - Repository の interface は `:shared:domain` に置き、UseCase はそれだけに依存する。実装は保存先を決めるときに作る
 - ローカルとサーバーのどちらから読むかを切り替える層（Gateway）は、2つ目のデータ源（サーバーとの同期など）が実際に必要になったときに足す
 - Web 版はオンライン専用の想定で、ローカルに保存せずサーバーのデータを直接使う。そのため、Repository の実装はプラットフォームごとに変わりうる
-- Repository は domain の `Outcome<T, E>`（`Success` と `Failure`）で返す。`kotlin.Result` と名前がぶつからないよう、別の名前にしている
-- 失敗は Repository ごとの sealed interface（`RecipeRepositoryFailure` など）で表す。技術的な分類で、UI のことは知らない。種類を足すと、受け取る UseCase の `when` がコンパイルエラーになり、対応漏れを防げる
+- Repository は domain の `Outcome<T, E>`（`Success` と `Failure`）で返す。`kotlin.Result` の失敗は `Throwable` で網羅性が効かないため、失敗の型を指定できる型を自前で持つ。`kotlin.Result` と名前がぶつからないよう `Outcome` にしている
+- 失敗は Repository ごとの sealed interface（`RecipeRepositoryFailure` など）で表す。技術的な分類で、UI のことは知らない。種類を足すと、受け取る UseCase の `when` がコンパイルエラーになり、対応漏れを防げる。メソッドによって起こる失敗がずれてきたら、メソッドごとに分ける
 - data 層は、ライブラリから来る例外をこの失敗の型に分類して返す。UseCase をライブラリに依存させないため
-- `CancellationException` は失敗に包まず、そのまま投げる
+- data 層の実装は、`CancellationException` を失敗に包まず、そのまま投げる。包まれると、すべての UseCase がその中身を見分けることになるため
 
 ## 実装の進め方
 
@@ -185,8 +187,11 @@ erDiagram
 
 1〜3 と 6〜9 は、ドメインの型として実装済み。
 4 は、名前と状態を指定して Recipe を作る UseCase と、名前・状態・メモを編集する UseCase を実装済み。
-編集は保存ボタン1回でまとめて反映する想定で、写真と材料は後から同じ UseCase に足す。
+編集は保存ボタン1回でまとめて反映する。
+写真と材料も同じ UseCase に足す想定だが、足すかはそれぞれを実装するときに決める。
 材料の受け取り方は、Item の重複候補をいつ判定するか（入力中か保存時か）で変わるため、5 と合わせて決める。
+入力中に判定するなら Item の ID と分量の一覧を、保存時に判定するなら Item に決まっていない材料名を受け取ることになる。
+写真をどの段階で実装するかは決めていない（[photo.md](photo.md)）。
 
 ## AI / ML
 
@@ -218,11 +223,9 @@ PoC は完了済み。
 - ローカルの保存方式（Room KMP など）と、プラットフォームごとの Repository の実装
 - Room のテーブル・主キー・インデックス
 - 購入済みチェックの保存方法（SavedStateHandle、Room の別の場所など）。KMP / CMP / iOS の挙動も調べて決める。Android の SavedStateHandle は、ユーザーによるアプリの終了や端末の再起動では消える
-- 想定内の失敗の具体的な型
-- Recipe の写真の扱い（[photo.md](photo.md)）
-- Repository の失敗の型を、Repository ごとにするかメソッドごとにするか。今は Repository ごとで、メソッドによって起こる失敗がずれてきたら分ける
-- Recipe を消す機能を作るとき、編集の保存で消された Recipe を作り直さないか。今は作成と同じ `save` で上書きするため
-- 何も変えずに保存したときも保存するか。今は常に保存する。サーバーとの同期を入れるときに見直す
+- Recipe の写真の扱いのうち、まだ決めていないこと（[photo.md](photo.md)）
+- Recipe を消す機能を作るとき、編集の保存で消された Recipe を作り直さないか。決めていない。今の実装は、作成と同じ `save` で上書きする
+- 何も変えずに保存したときも保存するか。決めていない。今の実装は常に保存する。サーバーとの同期を入れるときに決める
 - alias の具体的な保存構造
 - SAME / NOT_SAME のフィードバックの保存形式
 - AI 用の interface 名・feature flag の構造
