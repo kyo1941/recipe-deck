@@ -15,13 +15,14 @@ class RecipeTest {
 
     private fun recipe(
         name: String = "麻婆豆腐",
+        memo: String? = null,
         ingredients: ImmutableList<RecipeIngredient> = persistentListOf(),
     ) = Recipe(
         id = RecipeId("mapo-tofu"),
         name = name,
         status = RecipeStatus.DRAFT,
         photoRef = null,
-        memo = null,
+        memo = memo,
         ingredients = ingredients,
     )
 
@@ -33,6 +34,11 @@ class RecipeTest {
     @Test
     fun 名前が空白だけのRecipeは作れない() {
         assertFailsWith<IllegalArgumentException> { recipe(name = "  ") }
+    }
+
+    @Test
+    fun メモが空白だけのRecipeは作れない() {
+        assertFailsWith<IllegalArgumentException> { recipe(memo = " \n") }
     }
 
     @Test

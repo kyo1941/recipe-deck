@@ -12,6 +12,7 @@ data class Recipe(
 ) {
     init {
         require(name.isNotBlank()) { "Recipe 名は空白だけにできない" }
+        require(memo == null || memo.isNotBlank()) { "メモなしは null で表し、空白だけのメモは持てない" }
         require(ingredients.distinctBy { it.id }.size == ingredients.size) { "同じ材料行が Recipe に重複している" }
     }
 }
