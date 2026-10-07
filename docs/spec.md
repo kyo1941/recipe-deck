@@ -77,6 +77,9 @@ Recipe や ShoppingSession に所属しない、**買い物対象の同一性**�
 - Item の表示名変更（rename）と、異なる Item 同士の同一性統合（merge）は、別個の概念として扱う
 - AI の導入有無にかかわらず、Item というドメイン概念は変更しない
 - Session で手動追加したものも Item として作成する（ただし、Session 固有のデータは Session の外には持ち出さない）
+- 前後の空白を除いた表示名が、登録済みの Item と完全に一致する場合は、新しい Item を作らない。既存の Item へ自動で寄せることもせず、同じ表示名の Item があることを返し、既存の Item を使うかどうかはユーザーが決める
+- 既存の Item は、表示名の部分一致で探す
+- Item は、Recipe や Session から使われていなくても単独で存在してよい。一方で、Recipe が使っている Item だけが消えることは避けたい（Item と Recipe とで寿命が異なる）
 
 ## 分量
 
@@ -189,6 +192,10 @@ Session のスナップショットとは更新頻度やライフサイクルが
 AI / ML はドメインの中心に置かず、UseCase へ差し込める補助機能として扱う。
 Item の新規作成や rename などの UseCase に対し、既存 Item との重複候補判定を差し込むかどうかだけの関心事として扱う。
 
+重複の検知には、表示名の完全一致による検知と、AI による候補判定の2種類がある。
+完全一致による検知は、仕組みとして確実に判定できるため、AI の有無にかかわらず行う。
+AI による候補判定は、UI での入力中・保存時のどちらで行う場合でも、後から UseCase へ差し込めるようにする。
+
 ```mermaid
 flowchart LR
     A["Create / Rename Item UseCase"] --> B{"重複判定を有効化?"}
@@ -253,6 +260,7 @@ AI の応答が遅い場合や利用しない場合は、該当 UseCase への�
 - 空の Session を有効な状態とするか
 - MVP に merge を含めるか
 - 統合（merge）後の旧 Item ID の扱い（redirect / tombstone、undo を含む）
+- Item の削除を提供するか。提供する場合、Recipe や Session から使われている Item をどう扱うか
 - completed な Session において、Item の表示名を固定（スナップショット化）するかどうか（rename・merge の影響）。買い物履歴画面の実装時に決定する
 
 ## 参照
