@@ -3,6 +3,7 @@ package com.example.recipe_deck.domain.recipe
 import com.example.recipe_deck.domain.amount.Amount
 import com.example.recipe_deck.domain.amount.AmountUnit
 import com.example.recipe_deck.domain.amount.Quantity
+import com.example.recipe_deck.domain.amount.QuantityNotation
 import com.example.recipe_deck.domain.item.ItemId
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
@@ -44,7 +45,7 @@ class RecipeTest {
     @Test
     fun 同じItemを複数の材料行に持てる() {
         val ingredients = persistentListOf(
-            RecipeIngredient(RecipeIngredientId("row-1"), greenOnion, Amount(Quantity.of(1, 2), AmountUnit.PIECE)),
+            RecipeIngredient(RecipeIngredientId("row-1"), greenOnion, Amount(Quantity.of(1, 2), QuantityNotation.FRACTION, AmountUnit.PIECE)),
             RecipeIngredient(RecipeIngredientId("row-2"), greenOnion, null),
         )
 
