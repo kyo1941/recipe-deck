@@ -12,8 +12,7 @@ class SearchItemsUseCase(
     private val itemRepository: ItemRepository,
 ) {
     suspend operator fun invoke(keyword: String): SearchItemsResult {
-        val trimmedKeyword = keyword.trim()
-        if (trimmedKeyword.isEmpty()) return SearchItemsResult.Found(persistentListOf())
+        val trimmedKeyword = keyword.trim().ifEmpty { return SearchItemsResult.Found(persistentListOf()) }
 
         return when (val found = itemRepository.findAll()) {
             is Outcome.Success -> SearchItemsResult.Found(

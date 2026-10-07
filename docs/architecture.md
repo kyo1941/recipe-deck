@@ -112,7 +112,7 @@ erDiagram
 
 - 材料（RecipeIngredient）は、Recipe のコンテキストにおいて「対象の Item をどう使うか」を保持する中間モデル
 - Session 内の材料（SessionRecipeItem）も、ShoppingSession のコンテキストにおいて同様の責務を担う。分量を保持するのは特別なスナップショット用途ではなく、Recipe 側の中間モデルと同様の自然な責務である
-- 分量（`Amount`）は数量（`Quantity`）と省略可能な単位（`AmountUnit`）の組。材料は分量ごと省略できる
+- 分量（`Amount`）は数量（`Quantity`）と入力形式（`QuantityNotation`）と省略可能な単位（`AmountUnit`）の組。材料は分量ごと省略できる
 - 状態（`SessionState`）は `Active` と `Completed(completedAt)`。完了日時は完了した Session だけが持つ
 - 手動追加は、SessionItem 内で省略可能（nullable）な `ManualAddition` として保持し、さらにその中に省略可能な分量を持たせる（2段階の nullable）。`ManualAddition` 自体が null であれば手動追加されていないことを示し、分量が null であれば「数量指定なしで手動追加された」ことを意味する
   - 単なる参照の有無だけでは、同一の Item が Recipe にも含まれている場合に手動追加分と区別できず、Recipe を除外した際に手動追加した行を残せなくなる
@@ -123,6 +123,7 @@ erDiagram
 ### 集約と不変条件
 
 - Recipe は集約ルート。材料の一覧を保持し、並び順はリストの順序に従う。材料の行 ID は Recipe 内で重複しない
+- 材料の行 ID は、Recipe を編集するたびに振り直している。今は行 ID を参照するものがないため。行 ID を参照する機能を足すときは、入力に行 ID を持たせて保つ形に変える必要がある
 - ShoppingSession は集約ルート。内部に SessionRecipe・SessionRecipeItem・SessionItem を保持する。Session 外部と関連を持つのは ItemId と元 Recipe の RecipeId のみとする
 - 1つの Session 内において、同一 Item を参照する SessionItem は最大1件（一意）
 - SessionRecipeItem が参照可能なのは、同一 Session 内の SessionItem に限る
@@ -153,6 +154,10 @@ erDiagram
 - コルーチンのキャンセル（`CancellationException`）は UseCase 内で捕捉・ハンドリングしない
 - 名前やメモの前後の空白除去（トリム）や、空白文字のみのメモを未設定（`null`）へ変換するといった、入力値の正規化処理は UseCase 側で行う
 - 「下書き」や「利用可能」といったユーザーの選択値は、UI 層からの引数として受け取る
+- 入力フォームの都合から来るルール（表示名も分量もない材料は無視する、など）は、UseCase の入力の型（`IngredientInput`）に持たせ、UseCase の中で条件式として書かない。製品全体で一貫するルール（数量がなければ分量なし）は domain（`Amount.ofOrNull`）に置く
+- 1つのトランザクションでは、1つの集約だけを変更することを原則とする。Recipe の作成・編集は例外で、材料の入力と同時に新しい Item を作るという UI の都合から、新しい Item と Recipe を `TransactionRunner` で1つのトランザクションにまとめる。集約の境界は変えない（Item は複数の Recipe や Session から共有され、寿命も Recipe と異なるため）
+  - 取り消すかどうかは、使う側が `TransactionScope.rollback` で指示する。Repository は失敗を例外ではなく `Outcome.Failure` で返すため、`TransactionRunner` が結果を見て自動で取り消すことはしない
+  - 保存は Item を先、Recipe を後にする。仮に同じトランザクションにできなくても、失敗して残るのは単独の Item だけになり、存在しない Item を参照する Recipe は残らない
 
 ## データ層の方針
 
@@ -163,6 +168,7 @@ erDiagram
 - Repository 起因の失敗は、Repository ごとに定義した sealed interface（例: `RecipeRepositoryFailure`）で表現する。これは技術的要因に基づく分類であり、UI 層の関心事とは完全に分離されている。失敗の種類を追加した際には、それを受け取る UseCase 側の `when` 式がコンパイルエラーとなるため、処理の考慮漏れを防止できる。今は Repository ごとに1つの型とし、メソッドによって発生しうる失敗の種類がずれてきたら、メソッドごとに型を分ける
 - データ層の実装では、利用する外部ライブラリから送出される例外を捕捉し、このドメイン失敗型にマッピングして返却する。これにより、UseCase 層が特定のライブラリに依存することを防ぐ
 - データ層の実装では、コルーチンの `CancellationException` を失敗型でラップせず、そのまま再送出（throw）する。失敗型にラップしてしまうと、全 UseCase 側でキャンセルの有無を個別に識別しなければならなくなるためである
+- `TransactionRunner` は、Room KMP の `useWriterConnection { it.immediateTransaction { … } }` で包み、`TransactionScope.rollback` を Room の `TransactionScope.rollback` へ渡す想定である。その中で Repository の実装が呼ぶ DAO が同じトランザクションに入るかは、公式ドキュメントで明記を確認できていないため、データ層の実装時に動かして確かめる。技術的に難しい場合は、トランザクションの境界とデータ層の実装を再検討する
 
 ## 実装の進め方
 
@@ -185,11 +191,13 @@ erDiagram
 15. Room や UI の詳細を実装に合わせて確定
 
 1〜3 および 6〜9 は、ドメイン層の型として実装済み。
-4 は、名前と状態を指定して Recipe を作成する UseCase、および名前・状態・メモを編集する UseCase を実装済み。
+4 は、名前・状態・材料を指定して Recipe を作成する UseCase、および名前・状態・メモ・材料を編集する UseCase を実装済み。
 編集内容は保存ボタンの押下時に一括で反映する設計としている。
-写真および材料も同一の UseCase に含める想定であるが、実際に統合するかどうかは各機能の実装時に決定する。
-材料の入力受け取り形式は、Item の重複候補判定をどのタイミングで実行するか（入力中か保存時か）によって変化するため、Recipe 編集に材料を加える段階で方針を確定する。
-入力中に判定を行う場合は「Item ID と分量のリスト」を受け取り、保存時に判定を行う場合は「Item 未確定の材料名」を受け取る設計となる。
+材料は、材料ごとに「既存の Item ID」か「新しい表示名」と、分量を受け取る。
+新しい表示名の Item は Recipe の保存時に一緒に保存し、Item 作成 UseCase は呼ばずに `ItemRepository` を直接使う。
+後から「Item だけを先に保存するボタン」を設ける場合は、Recipe がなく Item だけがある状態が認められているため、そのボタンを Item 作成 UseCase に繋げばよい。
+材料を Item に結び付ける処理（`resolveIngredients`）は、作成と編集で共通にしている。
+写真も同一の UseCase に含める想定であるが、実際に統合するかどうかは写真機能の実装時に決定する。
 なお、写真機能をどの段階で実装するかは現時点では未定である（詳細は [photo.md](photo.md) 参照）。
 
 5 は、既存の Item を表示名の部分一致で探す UseCase と、Item を作成する UseCase を実装済み。
@@ -229,7 +237,8 @@ PoC は完了済み。
 - Recipe の写真に関する未決定事項（詳細は [photo.md](photo.md) 参照）
 - Recipe 削除機能の実装時、編集画面からの保存によって削除済み Recipe を再作成しないようにするか。現時点では決めていない。今の実装は新規作成と同一の `save` メソッドで上書き保存する構成となっている
 - 変更がない状態での保存要求時にも永続化処理を行うかどうか。現時点では無条件で保存する実装となっており、将来のサーバー同期導入時に方針を決定する
-- Item の表示名の一致判定（検索の部分一致、作成時の重複検知の完全一致）をどこで行うか。現時点では、どちらも Repository から全件を読み込み、UseCase で絞り込んでいる。データ層の実装時に、表示名を Repository へ渡す形へ移すかを、検索と作成で揃えて決める。Web 版では全件の通信が重くなること、SQLite の `LIKE` は英字の大文字・小文字を区別せず `%` や `_` のエスケープも必要なことを踏まえる。移した場合も、入力の正規化と空入力の扱いは UseCase に残す。あわせて、同じ表示名の Item の作成が同時に行われた場合の重複を、データ層でどう防ぐかも決める（Room の `@Transaction` で足りるか、一意制約が要るかなど）
+- Item の表示名の一致判定（検索の部分一致、作成時の重複検知の完全一致）をどこで行うか。現時点では、どちらも Repository から全件を読み込み、UseCase で絞り込んでいる。Recipe の作成・編集 UseCase も、材料の新しい表示名を既存の Item と照らすために、Item を全件読み込んでいる。データ層の実装時に、表示名を Repository へ渡す形へ移すかを、検索と作成で揃えて決める。Web 版では全件の通信が重くなること、SQLite の `LIKE` は英字の大文字・小文字を区別せず `%` や `_` のエスケープも必要なことを踏まえる。移した場合も、入力の正規化と空入力の扱いは UseCase に残す。あわせて、同じ表示名の Item の作成が同時に行われた場合の重複を、データ層でどう防ぐかも決める（Room の `@Transaction` で足りるか、一意制約が要るかなど）
+- Recipe の保存時に既存の Item を使ったことを、材料の行単位で返す必要があるか。現時点では、使った既存の Item の一覧だけを返している。UI の実装時に確認する
 - 別名（alias）の具体的な永続化構造
 - SAME / NOT_SAME 判定に対するフィードバックの保存形式
 - AI 用の interface の名前と、機能フラグ（feature flag）の構造

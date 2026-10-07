@@ -14,8 +14,7 @@ class CreateItemUseCase(
     private val itemRepository: ItemRepository,
 ) {
     suspend operator fun invoke(displayName: String): CreateItemResult {
-        val trimmedDisplayName = displayName.trim()
-        if (trimmedDisplayName.isEmpty()) return CreateItemResult.DisplayNameRequired
+        val trimmedDisplayName = displayName.trim().ifEmpty { return CreateItemResult.DisplayNameRequired }
 
         val existingItems = when (val found = itemRepository.findAll()) {
             is Outcome.Success -> found.value

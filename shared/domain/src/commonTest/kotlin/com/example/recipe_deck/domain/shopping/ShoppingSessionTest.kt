@@ -6,6 +6,7 @@ import com.example.recipe_deck.domain.amount.Amount
 import com.example.recipe_deck.domain.amount.AmountUnit
 import com.example.recipe_deck.domain.amount.Multiplier
 import com.example.recipe_deck.domain.amount.Quantity
+import com.example.recipe_deck.domain.amount.QuantityNotation
 import com.example.recipe_deck.domain.item.ItemId
 import com.example.recipe_deck.domain.recipe.RecipeId
 import kotlinx.collections.immutable.ImmutableList
@@ -30,7 +31,7 @@ class ShoppingSessionTest {
     private fun requires(sessionItem: SessionItem, rowId: String = "row-1") = SessionRecipeItem(
         id = SessionRecipeItemId(rowId),
         sessionItemId = sessionItem.id,
-        amount = Amount(Quantity.of(1), AmountUnit.PIECE),
+        amount = Amount(Quantity.of(1), QuantityNotation.FRACTION, AmountUnit.PIECE),
         isExcluded = false,
     )
 
