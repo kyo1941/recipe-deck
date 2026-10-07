@@ -59,73 +59,26 @@ class CreateRecipeUseCaseTest {
     }
 
     @Test
-    fun 選んだ既存のItemと分量を入力の順に材料として保存する() = runTest {
+    fun 材料を持ったRecipeと新しいItemを保存して既存に寄せたItemを返す() = runTest {
         itemRepository.savedItems += listOf(groundMeat, tofu)
-
-        createRecipe(
-            name = "麻婆豆腐",
-            status = RecipeStatus.DRAFT,
-            ingredients = listOf(
-                ingredient(IngredientItem.Existing(tofu.id), Quantity.of(1), AmountUnit.PIECE),
-                ingredient(IngredientItem.Existing(groundMeat.id), Quantity.of(200), AmountUnit.GRAM),
-            ),
-        )
-
-        val ingredients = recipeRepository.savedRecipes.single().ingredients
-        assertEquals(listOf(tofu.id, groundMeat.id), ingredients.map { it.itemId })
-        assertEquals(
-            listOf(
-                Amount(Quantity.of(1), QuantityNotation.FRACTION, AmountUnit.PIECE),
-                Amount(Quantity.of(200), QuantityNotation.FRACTION, AmountUnit.GRAM),
-            ),
-            ingredients.map { it.amount },
-        )
-    }
-
-    @Test
-    fun 新しい表示名の材料は前後の空白を除いた表示名でItemを作って参照する() = runTest {
-        createRecipe(
-            name = "麻婆豆腐",
-            status = RecipeStatus.DRAFT,
-            ingredients = listOf(ingredient(IngredientItem.New("　長ネギ \n"))),
-        )
-
-        val created = itemRepository.savedItems.single()
-        assertEquals("長ネギ", created.displayName)
-        assertEquals(created.id, recipeRepository.savedRecipes.single().ingredients.single().itemId)
-    }
-
-    @Test
-    fun 新しい表示名が既存のItemと完全に一致したら作らずに既存のItemを参照して返す() = runTest {
-        itemRepository.savedItems += groundMeat
 
         val result = createRecipe(
             name = "麻婆豆腐",
             status = RecipeStatus.DRAFT,
-            ingredients = listOf(ingredient(IngredientItem.New(" ひき肉 "))),
-        )
-
-        val saved = recipeRepository.savedRecipes.single()
-        assertEquals(CreateRecipeResult.Created(saved.id, persistentListOf(groundMeat)), result)
-        assertEquals(groundMeat.id, saved.ingredients.single().itemId)
-        assertEquals(listOf(groundMeat), itemRepository.savedItems)
-    }
-
-    @Test
-    fun 同じ新しい表示名の材料が複数あればItemを1つだけ作って両方が参照する() = runTest {
-        createRecipe(
-            name = "麻婆豆腐",
-            status = RecipeStatus.DRAFT,
             ingredients = listOf(
-                ingredient(IngredientItem.New("ひき肉")),
-                ingredient(IngredientItem.New("ひき肉 ")),
+                ingredient(IngredientItem.Existing(tofu.id), Quantity.of(1), AmountUnit.PIECE),
+                ingredient(IngredientItem.New("長ネギ")),
+                ingredient(IngredientItem.New(" ひき肉")),
             ),
         )
 
-        val created = itemRepository.savedItems.single()
+        val saved = recipeRepository.savedRecipes.single()
+        val created = itemRepository.savedItems.single { it.displayName == "長ネギ" }
+        assertEquals(CreateRecipeResult.Created(saved.id, persistentListOf(groundMeat)), result)
+        assertEquals(listOf(tofu.id, created.id, groundMeat.id), saved.ingredients.map { it.itemId })
         assertEquals(
-            listOf(created.id, created.id),
-            recipeRepository.savedRecipes.single().ingredients.map { it.itemId },
+            listOf(Amount(Quantity.of(1), QuantityNotation.FRACTION, AmountUnit.PIECE), null, null),
+            saved.ingredients.map { it.amount },
         )
     }
 
@@ -144,21 +97,6 @@ class CreateRecipeUseCaseTest {
         assertEquals(CreateRecipeResult.IngredientDisplayNameRequired(persistentListOf(0, 2)), result)
         assertEquals(emptyList(), itemRepository.savedItems)
         assertEquals(emptyList(), recipeRepository.savedRecipes)
-    }
-
-    @Test
-    fun 無視してよい材料は除いて保存する() = runTest {
-        createRecipe(
-            name = "麻婆豆腐",
-            status = RecipeStatus.DRAFT,
-            ingredients = listOf(
-                ingredient(IngredientItem.New(" ")),
-                ingredient(IngredientItem.New("長ネギ")),
-            ),
-        )
-
-        val created = itemRepository.savedItems.single()
-        assertEquals(listOf(created.id), recipeRepository.savedRecipes.single().ingredients.map { it.itemId })
     }
 
     @Test

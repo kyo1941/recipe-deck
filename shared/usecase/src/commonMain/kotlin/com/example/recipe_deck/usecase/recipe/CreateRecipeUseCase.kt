@@ -5,13 +5,10 @@ package com.example.recipe_deck.usecase.recipe
 import com.example.recipe_deck.domain.Outcome
 import com.example.recipe_deck.domain.TransactionRunner
 import com.example.recipe_deck.domain.item.Item
-import com.example.recipe_deck.domain.item.ItemId
 import com.example.recipe_deck.domain.item.ItemRepository
 import com.example.recipe_deck.domain.item.ItemRepositoryFailure
 import com.example.recipe_deck.domain.recipe.Recipe
 import com.example.recipe_deck.domain.recipe.RecipeId
-import com.example.recipe_deck.domain.recipe.RecipeIngredient
-import com.example.recipe_deck.domain.recipe.RecipeIngredientId
 import com.example.recipe_deck.domain.recipe.RecipeRepository
 import com.example.recipe_deck.domain.recipe.RecipeRepositoryFailure
 import com.example.recipe_deck.domain.recipe.RecipeStatus
@@ -43,34 +40,9 @@ class CreateRecipeUseCase(
                 is Outcome.Failure -> rollback(found.error.toCreateRecipeResult())
             }
 
-            val newItems = mutableMapOf<String, Item>()
-            val matchedExistingItems = mutableSetOf<Item>()
-            val recipeIngredients = ingredients
-                .filterNot { it.isIgnorable }
-                .map { input ->
-                    val itemId = when (val item = input.item) {
-                        is IngredientItem.Existing -> item.itemId
-                        is IngredientItem.New -> {
-                            val displayName = item.displayName.trim()
-                            val existingItem = existingItems[displayName]
-                            if (existingItem != null) {
-                                matchedExistingItems += existingItem
-                                existingItem.id
-                            } else {
-                                newItems
-                                    .getOrPut(displayName) { Item(ItemId(Uuid.random().toString()), displayName) }
-                                    .id
-                            }
-                        }
-                    }
-                    RecipeIngredient(
-                        id = RecipeIngredientId(Uuid.random().toString()),
-                        itemId = itemId,
-                        amount = input.amount,
-                    )
-                }
+            val resolved = resolveIngredients(ingredients, existingItems)
 
-            newItems.values.forEach { item ->
+            resolved.newItems.forEach { item ->
                 when (val saved = itemRepository.save(item)) {
                     is Outcome.Success -> Unit
                     is Outcome.Failure -> rollback(saved.error.toCreateRecipeResult())
@@ -83,10 +55,10 @@ class CreateRecipeUseCase(
                 status = status,
                 photoRef = null,
                 memo = null,
-                ingredients = recipeIngredients.toImmutableList(),
+                ingredients = resolved.recipeIngredients,
             )
             when (val saved = recipeRepository.save(recipe)) {
-                is Outcome.Success -> CreateRecipeResult.Created(recipe.id, matchedExistingItems.toImmutableList())
+                is Outcome.Success -> CreateRecipeResult.Created(recipe.id, resolved.matchedExistingItems)
                 is Outcome.Failure -> rollback(saved.error.toCreateRecipeResult())
             }
         }
