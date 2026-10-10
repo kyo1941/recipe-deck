@@ -1,13 +1,13 @@
-package com.example.recipe_deck.usecase.recipe
+package com.example.recipe_deck.usecase.ingredient
 
 import com.example.recipe_deck.domain.amount.Amount
 import com.example.recipe_deck.domain.amount.AmountUnit
 import com.example.recipe_deck.domain.amount.Quantity
 import com.example.recipe_deck.domain.amount.QuantityNotation
-import com.example.recipe_deck.domain.item.ItemId
+import com.example.recipe_deck.domain.item.ItemReference
 
 data class IngredientInput(
-    val item: IngredientItem,
+    val item: ItemReference,
     val quantity: Quantity?,
     val notation: QuantityNotation,
     val unit: AmountUnit?,
@@ -19,10 +19,5 @@ data class IngredientInput(
     val isInvalid: Boolean get() = hasBlankDisplayName && amount != null
 
     private val hasBlankDisplayName: Boolean
-        get() = item is IngredientItem.New && item.displayName.isBlank()
-}
-
-sealed interface IngredientItem {
-    data class Existing(val itemId: ItemId) : IngredientItem
-    data class New(val displayName: String) : IngredientItem
+        get() = item is ItemReference.Unregistered && item.displayName.isBlank()
 }

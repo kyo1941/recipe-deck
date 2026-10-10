@@ -6,10 +6,12 @@ import com.example.recipe_deck.domain.amount.Quantity
 import com.example.recipe_deck.domain.amount.QuantityNotation
 import com.example.recipe_deck.domain.item.Item
 import com.example.recipe_deck.domain.item.ItemId
+import com.example.recipe_deck.domain.item.ItemReference
 import com.example.recipe_deck.domain.item.ItemRepositoryFailure
 import com.example.recipe_deck.domain.recipe.RecipeRepositoryFailure
 import com.example.recipe_deck.domain.recipe.RecipeStatus
 import com.example.recipe_deck.usecase.FakeTransactionRunner
+import com.example.recipe_deck.usecase.ingredient.IngredientInput
 import com.example.recipe_deck.usecase.item.FakeItemRepository
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.test.runTest
@@ -27,7 +29,7 @@ class CreateRecipeUseCaseTest {
     private val tofu = Item(ItemId("item-2"), "豆腐")
 
     private fun ingredient(
-        item: IngredientItem,
+        item: ItemReference,
         quantity: Quantity? = null,
         unit: AmountUnit? = null,
     ) = IngredientInput(item, quantity, QuantityNotation.FRACTION, unit)
@@ -66,9 +68,9 @@ class CreateRecipeUseCaseTest {
             name = "麻婆豆腐",
             status = RecipeStatus.DRAFT,
             ingredients = listOf(
-                ingredient(IngredientItem.Existing(tofu.id), Quantity.of(1), AmountUnit.PIECE),
-                ingredient(IngredientItem.New("長ネギ")),
-                ingredient(IngredientItem.New(" ひき肉")),
+                ingredient(ItemReference.Registered(tofu.id), Quantity.of(1), AmountUnit.PIECE),
+                ingredient(ItemReference.Unregistered("長ネギ")),
+                ingredient(ItemReference.Unregistered(" ひき肉")),
             ),
         )
 
@@ -88,9 +90,9 @@ class CreateRecipeUseCaseTest {
             name = "麻婆豆腐",
             status = RecipeStatus.DRAFT,
             ingredients = listOf(
-                ingredient(IngredientItem.New(" 　"), Quantity.of(1), AmountUnit.PIECE),
-                ingredient(IngredientItem.New("長ネギ")),
-                ingredient(IngredientItem.New(""), Quantity.of(200), AmountUnit.GRAM),
+                ingredient(ItemReference.Unregistered(" 　"), Quantity.of(1), AmountUnit.PIECE),
+                ingredient(ItemReference.Unregistered("長ネギ")),
+                ingredient(ItemReference.Unregistered(""), Quantity.of(200), AmountUnit.GRAM),
             ),
         )
 
@@ -107,7 +109,7 @@ class CreateRecipeUseCaseTest {
         val result = createRecipe(
             name = "麻婆豆腐",
             status = RecipeStatus.DRAFT,
-            ingredients = listOf(ingredient(IngredientItem.New("長ネギ"))),
+            ingredients = listOf(ingredient(ItemReference.Unregistered("長ネギ"))),
         )
 
         assertEquals(CreateRecipeResult.Unexpected(cause), result)
@@ -123,7 +125,7 @@ class CreateRecipeUseCaseTest {
         val result = createRecipe(
             name = "麻婆豆腐",
             status = RecipeStatus.DRAFT,
-            ingredients = listOf(ingredient(IngredientItem.New("長ネギ"))),
+            ingredients = listOf(ingredient(ItemReference.Unregistered("長ネギ"))),
         )
 
         assertEquals(CreateRecipeResult.Unexpected(cause), result)
@@ -139,7 +141,7 @@ class CreateRecipeUseCaseTest {
         val result = createRecipe(
             name = "麻婆豆腐",
             status = RecipeStatus.DRAFT,
-            ingredients = listOf(ingredient(IngredientItem.New("長ネギ"))),
+            ingredients = listOf(ingredient(ItemReference.Unregistered("長ネギ"))),
         )
 
         assertEquals(CreateRecipeResult.Unexpected(cause), result)

@@ -6,6 +6,7 @@ import com.example.recipe_deck.domain.amount.Quantity
 import com.example.recipe_deck.domain.amount.QuantityNotation
 import com.example.recipe_deck.domain.item.Item
 import com.example.recipe_deck.domain.item.ItemId
+import com.example.recipe_deck.domain.item.ItemReference
 import com.example.recipe_deck.domain.item.ItemRepositoryFailure
 import com.example.recipe_deck.domain.recipe.Recipe
 import com.example.recipe_deck.domain.recipe.RecipeId
@@ -14,6 +15,7 @@ import com.example.recipe_deck.domain.recipe.RecipeIngredientId
 import com.example.recipe_deck.domain.recipe.RecipeRepositoryFailure
 import com.example.recipe_deck.domain.recipe.RecipeStatus
 import com.example.recipe_deck.usecase.FakeTransactionRunner
+import com.example.recipe_deck.usecase.ingredient.IngredientInput
 import com.example.recipe_deck.usecase.item.FakeItemRepository
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.test.runTest
@@ -43,7 +45,7 @@ class EditRecipeUseCaseTest {
     )
 
     private fun ingredient(
-        item: IngredientItem,
+        item: ItemReference,
         quantity: Quantity? = null,
         unit: AmountUnit? = null,
     ) = IngredientInput(item, quantity, QuantityNotation.FRACTION, unit)
@@ -95,9 +97,9 @@ class EditRecipeUseCaseTest {
             status = RecipeStatus.DRAFT,
             memo = "",
             ingredients = listOf(
-                ingredient(IngredientItem.Existing(tofu.id), Quantity.of(1), AmountUnit.PIECE),
-                ingredient(IngredientItem.New("長ネギ")),
-                ingredient(IngredientItem.New(" ひき肉")),
+                ingredient(ItemReference.Registered(tofu.id), Quantity.of(1), AmountUnit.PIECE),
+                ingredient(ItemReference.Unregistered("長ネギ")),
+                ingredient(ItemReference.Unregistered(" ひき肉")),
             ),
         )
 
@@ -169,8 +171,8 @@ class EditRecipeUseCaseTest {
             status = RecipeStatus.DRAFT,
             memo = "",
             ingredients = listOf(
-                ingredient(IngredientItem.New("長ネギ")),
-                ingredient(IngredientItem.New(" "), Quantity.of(1), AmountUnit.PIECE),
+                ingredient(ItemReference.Unregistered("長ネギ")),
+                ingredient(ItemReference.Unregistered(" "), Quantity.of(1), AmountUnit.PIECE),
             ),
         )
 
@@ -221,7 +223,7 @@ class EditRecipeUseCaseTest {
             name = "麻婆豆腐",
             status = RecipeStatus.DRAFT,
             memo = "",
-            ingredients = listOf(ingredient(IngredientItem.New("長ネギ"))),
+            ingredients = listOf(ingredient(ItemReference.Unregistered("長ネギ"))),
         )
 
         assertEquals(EditRecipeResult.Unexpected(cause), result)
@@ -240,7 +242,7 @@ class EditRecipeUseCaseTest {
             name = "麻婆豆腐",
             status = RecipeStatus.DRAFT,
             memo = "",
-            ingredients = listOf(ingredient(IngredientItem.New("長ネギ"))),
+            ingredients = listOf(ingredient(ItemReference.Unregistered("長ネギ"))),
         )
 
         assertEquals(EditRecipeResult.Unexpected(cause), result)
@@ -259,7 +261,7 @@ class EditRecipeUseCaseTest {
             name = "麻婆豆腐",
             status = RecipeStatus.DRAFT,
             memo = "",
-            ingredients = listOf(ingredient(IngredientItem.New("長ネギ"))),
+            ingredients = listOf(ingredient(ItemReference.Unregistered("長ネギ"))),
         )
 
         assertEquals(EditRecipeResult.Unexpected(cause), result)

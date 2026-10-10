@@ -6,6 +6,8 @@ import com.example.recipe_deck.domain.amount.Quantity
 import com.example.recipe_deck.domain.amount.QuantityNotation
 import com.example.recipe_deck.domain.item.Item
 import com.example.recipe_deck.domain.item.ItemId
+import com.example.recipe_deck.domain.item.ItemReference
+import com.example.recipe_deck.usecase.ingredient.IngredientInput
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -15,7 +17,7 @@ class ResolvedIngredientsTest {
     private val existingItems = listOf(groundMeat, tofu).associateBy { it.displayName }
 
     private fun ingredient(
-        item: IngredientItem,
+        item: ItemReference,
         quantity: Quantity? = null,
         unit: AmountUnit? = null,
     ) = IngredientInput(item, quantity, QuantityNotation.FRACTION, unit)
@@ -24,8 +26,8 @@ class ResolvedIngredientsTest {
     fun 選んだ既存のItemと分量を入力の順に材料にする() {
         val resolved = resolveIngredients(
             listOf(
-                ingredient(IngredientItem.Existing(tofu.id), Quantity.of(1), AmountUnit.PIECE),
-                ingredient(IngredientItem.Existing(groundMeat.id), Quantity.of(200), AmountUnit.GRAM),
+                ingredient(ItemReference.Registered(tofu.id), Quantity.of(1), AmountUnit.PIECE),
+                ingredient(ItemReference.Registered(groundMeat.id), Quantity.of(200), AmountUnit.GRAM),
             ),
             existingItems,
         )
@@ -43,7 +45,7 @@ class ResolvedIngredientsTest {
 
     @Test
     fun 新しい表示名の材料は前後の空白を除いた表示名でItemを作って参照する() {
-        val resolved = resolveIngredients(listOf(ingredient(IngredientItem.New("　長ネギ \n"))), existingItems)
+        val resolved = resolveIngredients(listOf(ingredient(ItemReference.Unregistered("　長ネギ \n"))), existingItems)
 
         val created = resolved.newItems.single()
         assertEquals("長ネギ", created.displayName)
@@ -52,7 +54,7 @@ class ResolvedIngredientsTest {
 
     @Test
     fun 新しい表示名が既存のItemと完全に一致したら作らずに既存のItemを参照して寄せた分として返す() {
-        val resolved = resolveIngredients(listOf(ingredient(IngredientItem.New(" ひき肉 "))), existingItems)
+        val resolved = resolveIngredients(listOf(ingredient(ItemReference.Unregistered(" ひき肉 "))), existingItems)
 
         assertEquals(groundMeat.id, resolved.recipeIngredients.single().itemId)
         assertEquals(emptyList(), resolved.newItems)
@@ -62,7 +64,7 @@ class ResolvedIngredientsTest {
     @Test
     fun 同じ新しい表示名の材料が複数あればItemを1つだけ作って両方が参照する() {
         val resolved = resolveIngredients(
-            listOf(ingredient(IngredientItem.New("長ネギ")), ingredient(IngredientItem.New("長ネギ "))),
+            listOf(ingredient(ItemReference.Unregistered("長ネギ")), ingredient(ItemReference.Unregistered("長ネギ "))),
             existingItems,
         )
 
@@ -73,7 +75,7 @@ class ResolvedIngredientsTest {
     @Test
     fun 同じ既存のItemに複数の材料が寄っても寄せた分には1つだけ含める() {
         val resolved = resolveIngredients(
-            listOf(ingredient(IngredientItem.New("ひき肉")), ingredient(IngredientItem.New(" ひき肉"))),
+            listOf(ingredient(ItemReference.Unregistered("ひき肉")), ingredient(ItemReference.Unregistered(" ひき肉"))),
             existingItems,
         )
 
@@ -83,7 +85,7 @@ class ResolvedIngredientsTest {
     @Test
     fun 無視してよい材料は除く() {
         val resolved = resolveIngredients(
-            listOf(ingredient(IngredientItem.New(" ")), ingredient(IngredientItem.Existing(tofu.id))),
+            listOf(ingredient(ItemReference.Unregistered(" ")), ingredient(ItemReference.Registered(tofu.id))),
             existingItems,
         )
 

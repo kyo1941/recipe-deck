@@ -34,6 +34,7 @@ MVP ではユーザー自身が所有する Recipe を前提とし、公開・�
 | Recipe | `Recipe` | ユーザーが再利用する「作るもの」 |
 | 材料 | `RecipeIngredient` | Recipe で、ある Item をどれだけ使うか |
 | Item | `Item` | 買い物対象の同一性（ひき肉、豆腐、長ネギ） |
+| Item の参照 | `ItemReference` | 登録済みの Item（`Registered`）か、表示名しか分からないもの（`Unregistered`）か |
 | 分量 | `Amount` | 数量と入力形式と、省略可能な単位の組 |
 | 数量 | `Quantity` | 正の有理数 |
 | 入力形式 | `QuantityNotation` | 数量を分数と小数のどちらで入力したか |
@@ -44,7 +45,8 @@ MVP ではユーザー自身が所有する Recipe を前提とし、公開・�
 | 進行中／完了 | `SessionState.Active` / `Completed` | ShoppingSession の状態 |
 | Session 内の Recipe | `SessionRecipe` | Session に追加した Recipe のコピー |
 | Session 内の材料 | `SessionRecipeItem` | Session 内の Recipe が、ある Item をどれだけ必要とするか |
-| Session 内の Item | `SessionItem` | Session 内の Item 1つ（買い物リストの1行の元） |
+| Session 内の Item | `SessionItem` | Session 内の品目1つ（買い物リストの1行の元）。Item か Session 限定の品目を指す |
+| Session 限定の品目 | `ItemReference.Unregistered`（`SessionItem` 内） | Item を作らず、Session の中にだけ表示名を持つ品目。Session と同じ寿命を持つ |
 | 手動追加 | `ManualAddition` | Recipe を経由せず Session に直接追加した項目 |
 | 今回は不要 | `SessionRecipeItem.isExcluded` | Recipe 本体は変更せず、今回に限り材料を除外すること |
 
@@ -63,6 +65,7 @@ MVP ではユーザー自身が所有する Recipe を前提とし、公開・�
 - Recipe に登録された材料構成を1単位として扱う
 - 同一の Item を1つの Recipe 内で複数行保持できる
 - ShoppingSession へ追加する際に倍率を指定できる。倍率は正の有理数（1/4、1/2、1、2…）とし、選択肢は UI 側で提示・決定する
+- 下書きの Recipe は ShoppingSession へ追加できない。UI は追加できない見せ方にし、UseCase でも拒む。材料0件でも、利用可能なら追加できる
 - Recipe を編集しても、既に ShoppingSession へ追加済みの内容は自動で変更されない
 
 ## Item
@@ -77,11 +80,12 @@ Recipe や ShoppingSession に所属しない、**買い物対象の同一性**�
 - Recipe 由来か手動追加かで Item の種類を分けない
 - Item の表示名変更（rename）と、異なる Item 同士の同一性統合（merge）は、別個の概念として扱う
 - AI の導入有無にかかわらず、Item というドメイン概念は変更しない
-- Session で手動追加したものも Item として作成する（ただし、Session 固有のデータは Session の外には持ち出さない）
+- Session で表示名を入力して足した品目（Recipe の追加時に今回だけ足した材料など）は、Item を作らず、Session 限定の品目として Session の中にだけ持つ。Item の一覧や検索には出ず、Session を削除すれば一緒に消える。Session 限定の品目を Item として登録できるようにするかは、今後検討する（[未確定事項](#未確定事項)）
 - 前後の空白を除いた表示名が、登録済みの Item と完全に一致する場合は、新しい Item を作らない
   - Item を単独で作る操作では、同じ表示名の Item があることを返す
   - Recipe の保存時に、材料として入力した表示名が一致した場合は、確認を挟まずに既存の Item を使う。既存の Item を使ったことは結果で返し、ユーザーへ知らせるかどうかは UI が決める
   - 同じ保存の中で、同じ新しい表示名を複数の材料に入力した場合も、Item は1つだけ作り、それらの材料が共通して参照する
+  - Session への Recipe の追加で、材料として入力した表示名が一致した場合も、Recipe の保存時と同じく既存の Item を使い、使ったことを結果で返す。一致しなければ Session 限定の品目になり、同じ Session 内の同じ表示名の品目は1つにまとめる
 - 既存の Item は、表示名の部分一致で探す
 - Item は、Recipe や Session から使われていなくても単独で存在してよい。一方で、Recipe が使っている Item だけが消えることは避けたい（Item と Recipe とで寿命が異なる）
 
@@ -110,13 +114,17 @@ Recipe や ShoppingSession に所属しない、**買い物対象の同一性**�
 - 通常の UI 操作において active な Session は最大1件
 - 状態は active / completed の2種類。破棄する買い物リストは履歴として残さず削除する
 - completed な Session は過去の買い物実績として扱い、Session へコピーした内容（Recipe 名・倍率・分量など）をそのまま保持する。Item は ItemId で参照するため、Item の表示名を固定（スナップショット化）するかどうかは未確定（[未確定事項](#未確定事項)）
-- 進行中の Session では、Item の表示名変更（rename）が反映される（Session は Item を ItemId で参照しており、表示名自体は保持しないため）
+- 進行中の Session では、Item の表示名変更（rename）が反映される（Session は Item を ItemId で参照しており、表示名自体は保持しないため）。Session 限定の品目は、表示名を Session 内に持つ
 - 作成日時と完了日時を保持する。完了日時を持つのは completed な Session のみ。作成日時は Session 作成時のタイムスタンプとする
 - Recipe を Session へ追加した後は、元の Recipe が編集されても自動同期しない
 - Session 内のデータは Session 完結とし、元の Recipe と密結合させない
-- Session 内で完結した形で材料の追加・数量変更・「今回は不要」による除外が可能であり、Recipe 本体には反映されない。除外した材料も Session 内に保持され、再度有効化できる
+- 材料の数量変更・「今回は不要」による除外・今回だけの材料の追加は、Recipe を Session へ追加する操作の中で行い、Recipe 本体には反映されない。除外した材料も Session 内に保持する（買い物リストでの見せ方は UI が決める）
+- 追加した後に、Session 内の Recipe を単位として材料を編集できるようにするかは未確定（[未確定事項](#未確定事項)）
 - Session 内の Recipe に今回限りで追加した材料と、Recipe からコピーした材料は区別しない（いずれも Session 内の材料として保持する）。一方、Recipe を経由せず Session に直接追加した分は、手動追加（ManualAddition）として区別して保持する
-- Session から Recipe 単位で削除できる。ただし買い物リスト表示の実装方式によっては不要になる可能性がある
+- 進行中の Session がないときに Recipe を追加すると、Session を自動で作る
+- 同じ Recipe を複数回追加すると、追加のたびに別の Session 内の Recipe になる。同じ品目の分量は、買い物リストの集計で合わさる
+- Session から、追加1回分の Recipe を単位として削除できる（必要になったときに実装する）。ただし買い物リスト表示の実装方式によっては不要になる可能性がある
+- 買い物リスト上から Recipe を単位として追加する操作は、禁止はしないが今は設けない。買い物リスト上では、品目単位の数量変更・削除・追加を行う
 - 追加後に倍率を変更する操作は MVP では提供しない
 - 購入済みチェックはドメインモデルに持たせない（[購入済みチェック](#購入済みチェック)）
 
@@ -154,8 +162,10 @@ Recipe を Session へ追加するとき、Session 側へ必要な情報をコ�
 - 元の Recipe を編集しても既存の Session には影響しない
 - Recipe が後から変更・削除されても、進行中 Session の整合性を損なわない
 - Session へコピーするのは、Recipe 名・追加時の倍率・倍率適用後の分量
-- Item は ItemId で参照し、表示名はコピーしない
+- Item は ItemId で参照し、表示名はコピーしない。Session 限定の品目は、表示名を Session 内に持つ
 - Session 内の材料は倍率適用後の分量を保持する。これにより、Session 内で数量を修正した際に、倍率適用前後のどちらの値を操作しているかが曖昧になるのを防ぐ
+- 倍率を掛けた後の分量は、元の材料の入力形式（分数か小数か）を引き継ぐ
+- 割り切れない値や長い小数の丸めは表示するときに行い、分量は分数のまま持つ。桁数と、打ち切りか四捨五入かは、表示を作るときに決める
 - 元の Recipe ID は Recipe 画面への画面遷移用途でのみ保持し、それ以外の目的で Recipe を参照しない
 - Session 内での変更を Recipe 本体へ反映する機能の検討時に、データ設計と合わせて見直す
 
@@ -274,9 +284,14 @@ AI の応答が遅い場合や利用しない場合は、該当 UseCase への�
 実装開始前にすべてを確定させるのではなく、UseCase を順次実装していく中で具体的に必要性が生じた段階で相談・決定する。
 
 - 合算時の単位の表現方法
-- 倍率を掛けた後や、合算した後の分量の入力形式（分数か小数か）をどうするか。Session への追加（倍率）と買い物リストの集計の実装時に決める
+- 合算した後の分量の入力形式（分数か小数か）をどうするか。買い物リストの集計の実装時に決める
+- 数量に 0 が入力されたときの扱い（分量なしとみなすか、不正とするか）
 - パック・袋など容器を数える単位の扱い。同一の Item で「1個」と「1パック」が混在する場合、単純に「個」へ統一すると誤って合算されてしまう問題がある。合算時の表現方法と合わせて方針を決定する
-- 空の Session を有効な状態とするか
+- 空の Session を有効な状態とするか。Recipe の追加では空の Session は生まれない。「買い物リストの作成」のように Session を先に作る操作を設けるかは、その画面を作るときに決める
+- 追加した後に、Session 内の Recipe を単位として材料を編集できるようにするか。除外した材料を後から有効に戻せるようにするかも合わせて決める
+- 買い物リスト上で品目単位に数量を変える・削除するとき、その品目が複数の材料の行から合算されていたら、どの行をどう変えるか。今のドメインには、合算した後の品目単位の変更を表す場所がない。リストの編集を作るときに決める
+- Session 限定の品目を Item として登録できるようにするか。今は Item にしない。設ける場合は、ユーザーに Item として登録するかを尋ねる導線とし、登録しない選択肢も残す。登録したときは、その SessionItem の参照を登録した Item に付け替えれば、Session 内の材料の行はそのまま使える
+- Session 限定の品目がある Session で、同じ表示名の Item が後から作られた場合、その後の追加で Item を指す行と Session 限定の品目が同じ名前で並ぶ。今は許容する。追加のたびに Session 限定の品目も既存の Item と照らし直す対応を後から足せる（足した時点で完了済みの Session は直らない）
 - MVP に merge を含めるか
 - 統合（merge）後の旧 Item ID の扱い（redirect / tombstone、undo を含む）
 - Item の削除を提供するか。提供する場合、Recipe や Session から使われている Item をどう扱うか。あわせて、Recipe の保存時に、材料で選ばれた既存の Item が存在するかを確かめるかも決める（現時点では、削除の手段がないため確かめていない）

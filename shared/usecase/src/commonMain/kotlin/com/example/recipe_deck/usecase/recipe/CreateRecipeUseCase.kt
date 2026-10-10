@@ -12,6 +12,7 @@ import com.example.recipe_deck.domain.recipe.RecipeId
 import com.example.recipe_deck.domain.recipe.RecipeRepository
 import com.example.recipe_deck.domain.recipe.RecipeRepositoryFailure
 import com.example.recipe_deck.domain.recipe.RecipeStatus
+import com.example.recipe_deck.usecase.ingredient.IngredientInput
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import kotlin.uuid.ExperimentalUuidApi
