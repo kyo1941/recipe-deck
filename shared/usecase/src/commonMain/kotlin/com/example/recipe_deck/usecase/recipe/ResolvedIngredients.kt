@@ -4,6 +4,7 @@ package com.example.recipe_deck.usecase.recipe
 
 import com.example.recipe_deck.domain.item.Item
 import com.example.recipe_deck.domain.item.ItemId
+import com.example.recipe_deck.domain.item.ItemReference
 import com.example.recipe_deck.domain.recipe.RecipeIngredient
 import com.example.recipe_deck.domain.recipe.RecipeIngredientId
 import kotlinx.collections.immutable.ImmutableList
@@ -27,8 +28,8 @@ internal fun resolveIngredients(
         .filterNot { it.isIgnorable }
         .map { input ->
             val itemId = when (val item = input.item) {
-                is IngredientItem.Existing -> item.itemId
-                is IngredientItem.New -> {
+                is ItemReference.Registered -> item.itemId
+                is ItemReference.Unregistered -> {
                     val displayName = item.displayName.trim()
                     val existingItem = existingItems[displayName]
                     if (existingItem != null) {
