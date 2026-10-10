@@ -1,4 +1,4 @@
-package com.example.recipe_deck.usecase.recipe
+package com.example.recipe_deck.usecase.ingredient
 
 import com.example.recipe_deck.domain.amount.Amount
 import com.example.recipe_deck.domain.amount.AmountUnit

@@ -19,9 +19,9 @@ import com.example.recipe_deck.domain.recipe.RecipeRepositoryFailure
 import com.example.recipe_deck.domain.recipe.RecipeStatus
 import com.example.recipe_deck.domain.shopping.SessionState
 import com.example.recipe_deck.domain.shopping.ShoppingSessionRepositoryFailure
+import com.example.recipe_deck.usecase.ingredient.IngredientInput
 import com.example.recipe_deck.usecase.item.FakeItemRepository
 import com.example.recipe_deck.usecase.recipe.FakeRecipeRepository
-import com.example.recipe_deck.usecase.recipe.IngredientInput
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test

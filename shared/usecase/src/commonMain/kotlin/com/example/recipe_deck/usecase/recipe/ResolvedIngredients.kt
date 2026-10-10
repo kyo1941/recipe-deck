@@ -7,6 +7,7 @@ import com.example.recipe_deck.domain.item.ItemId
 import com.example.recipe_deck.domain.item.ItemReference
 import com.example.recipe_deck.domain.recipe.RecipeIngredient
 import com.example.recipe_deck.domain.recipe.RecipeIngredientId
+import com.example.recipe_deck.usecase.ingredient.IngredientInput
 import com.example.recipe_deck.usecase.item.linkToExistingItem
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList

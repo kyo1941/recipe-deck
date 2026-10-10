@@ -11,6 +11,7 @@ import com.example.recipe_deck.domain.item.ItemRepositoryFailure
 import com.example.recipe_deck.domain.recipe.RecipeRepositoryFailure
 import com.example.recipe_deck.domain.recipe.RecipeStatus
 import com.example.recipe_deck.usecase.FakeTransactionRunner
+import com.example.recipe_deck.usecase.ingredient.IngredientInput
 import com.example.recipe_deck.usecase.item.FakeItemRepository
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.test.runTest
