@@ -61,7 +61,7 @@ erDiagram
     ShoppingSession ||--o{ SessionItem : "has"
     SessionRecipe ||--o{ SessionRecipeItem : "requires"
     SessionItem ||--o{ SessionRecipeItem : "referenced by"
-    Item ||--o{ SessionItem : "referenced by"
+    Item |o--o{ SessionItem : "referenced by (Registered only)"
     Recipe ||..o{ SessionRecipe : "source (navigation only)"
 
     Recipe {
@@ -98,7 +98,7 @@ erDiagram
 
     SessionItem {
         SessionItemId id
-        ItemId itemId
+        ItemReference item
         ManualAddition manualAddition
     }
 
@@ -113,6 +113,8 @@ erDiagram
 - 材料（RecipeIngredient）は、Recipe のコンテキストにおいて「対象の Item をどう使うか」を保持する中間モデル
 - Session 内の材料（SessionRecipeItem）も、ShoppingSession のコンテキストにおいて同様の責務を担う。分量を保持するのは特別なスナップショット用途ではなく、Recipe 側の中間モデルと同様の自然な責務である
 - 分量（`Amount`）は数量（`Quantity`）と入力形式（`QuantityNotation`）と省略可能な単位（`AmountUnit`）の組。材料は分量ごと省略できる
+- Item の参照（`ItemReference`）は、登録済みの Item を指す（`Registered`）か、表示名しか分からない（`Unregistered`）かを表す Item ドメインの型。材料の入力（`IngredientInput`）と SessionItem が、これを共通して使う
+- SessionItem は、Item を指すか、Session 限定の品目の表示名を持つ。Session 限定の品目は Item を作らず、Session と同じ寿命を持つ（[spec.md](spec.md#item)）
 - 状態（`SessionState`）は `Active` と `Completed(completedAt)`。完了日時は完了した Session だけが持つ
 - 手動追加は、SessionItem 内で省略可能（nullable）な `ManualAddition` として保持し、さらにその中に省略可能な分量を持たせる（2段階の nullable）。`ManualAddition` 自体が null であれば手動追加されていないことを示し、分量が null であれば「数量指定なしで手動追加された」ことを意味する
   - 単なる参照の有無だけでは、同一の Item が Recipe にも含まれている場合に手動追加分と区別できず、Recipe を除外した際に手動追加した行を残せなくなる
@@ -125,12 +127,13 @@ erDiagram
 - Recipe は集約ルート。材料の一覧を保持し、並び順はリストの順序に従う。材料の行 ID は Recipe 内で重複しない
 - 材料の行 ID は、Recipe を編集するたびに振り直している。今は行 ID を参照するものがないため。行 ID を参照する機能を足すときは、入力に行 ID を持たせて保つ形に変える必要がある
 - ShoppingSession は集約ルート。内部に SessionRecipe・SessionRecipeItem・SessionItem を保持する。Session 外部と関連を持つのは ItemId と元 Recipe の RecipeId のみとする
-- 1つの Session 内において、同一 Item を参照する SessionItem は最大1件（一意）
+- 1つの Session 内において、同一 Item を参照する SessionItem は最大1件（一意）。同じ表示名の Session 限定の品目も最大1件
+- Session 限定の品目の表示名は、空白だけにできない
 - SessionRecipeItem が参照可能なのは、同一 Session 内の SessionItem に限る
 - Recipe 由来の参照も手動追加の指定も存在しない SessionItem は保持しない（除外設定された材料行からの参照も有効な参照としてカウントする）
 - SessionRecipe・SessionItem・SessionRecipeItem の ID は Session 全体で重複しない
 - 完了日時は作成日時より過去であってはならない
-- 「active な Session は最大1件」という不変条件は複数 Session にまたがる制約であるため、単一集約の境界内では担保できない
+- 「active な Session は最大1件」という不変条件は複数 Session にまたがる制約であるため、単一集約の境界内では担保できない。Repository より下の層（データ層）で保証する。UseCase は Session の ID を受け取らず、進行中の Session を探して使う
 
 ### 永続化との対応
 
@@ -155,9 +158,11 @@ erDiagram
 - 名前やメモの前後の空白除去（トリム）や、空白文字のみのメモを未設定（`null`）へ変換するといった、入力値の正規化処理は UseCase 側で行う
 - 「下書き」や「利用可能」といったユーザーの選択値は、UI 層からの引数として受け取る
 - 入力フォームの都合から来るルール（表示名も分量もない材料は無視する、など）は、UseCase の入力の型（`IngredientInput`）に持たせ、UseCase の中で条件式として書かない。製品全体で一貫するルール（数量がなければ分量なし）は domain（`Amount.ofOrNull`）に置く
+  - `IngredientInput` は、Recipe の作成・編集と、Session への Recipe の追加で共通して使う
 - 1つのトランザクションでは、1つの集約だけを変更することを原則とする。Recipe の作成・編集は例外で、材料の入力と同時に新しい Item を作るという UI の都合から、新しい Item と Recipe を `TransactionRunner` で1つのトランザクションにまとめる。集約の境界は変えない（Item は複数の Recipe や Session から共有され、寿命も Recipe と異なるため）
   - 取り消すかどうかは、使う側が `TransactionScope.rollback` で指示する。Repository は失敗を例外ではなく `Outcome.Failure` で返すため、`TransactionRunner` が結果を見て自動で取り消すことはしない
   - 保存は Item を先、Recipe を後にする。仮に同じトランザクションにできなくても、失敗して残るのは単独の Item だけになり、存在しない Item を参照する Recipe は残らない
+- Session への Recipe の追加は、書き込みが Session の Repository への1回だけなので、`TransactionRunner` を使わない。Session 内の複数のテーブルへの書き込みは、Repository の実装の中でデータベースのトランザクションにまとめる
 
 ## データ層の方針
 
@@ -197,6 +202,7 @@ erDiagram
 新しい表示名の Item は Recipe の保存時に一緒に保存し、Item 作成 UseCase は呼ばずに `ItemRepository` を直接使う。
 後から「Item だけを先に保存するボタン」を設ける場合は、Recipe がなく Item だけがある状態が認められているため、そのボタンを Item 作成 UseCase に繋げばよい。
 材料を Item に結び付ける処理（`resolveIngredients`）は、作成と編集で共通にしている。
+表示名を既存の Item と照らす処理（`linkToExistingItem`）は、Session への Recipe の追加とも共通にしている。
 写真も同一の UseCase に含める想定であるが、実際に統合するかどうかは写真機能の実装時に決定する。
 なお、写真機能をどの段階で実装するかは現時点では未定である（詳細は [photo.md](photo.md) 参照）。
 
@@ -204,6 +210,14 @@ erDiagram
 Item 作成 UseCase は、重複候補をいつユーザーに見せるか（入力中か保存時か）という UI の作りとは切り離して作っている。
 AI による重複候補判定（13）は後から差し込む。
 差し込む場所によっては、結果の種類に加えて、ユーザーが候補を確認したうえで新規作成を選んだことを伝える引数も増える。
+
+10 は、Recipe を進行中の Session に追加する UseCase を実装済み。
+進行中の Session がなければ作り、下書きの Recipe は拒む。
+入力は、Recipe ID と倍率、および追加の画面に出ている最終形の材料の一覧（倍率を掛け、量の変更・除外・今回だけの材料の追加を終えたもの）とする。
+材料の一覧は `IngredientInput` に除外の有無を加えた形で受け取る。
+倍率の計算はこの UseCase の外（追加の画面に出す分量を作るところ）で行い、UseCase は倍率を記録として残すだけである。
+倍率の計算で桁あふれした場合は予期しない失敗として扱う。計算をどこに置くか（UI か、表示用の分量を作る UseCase か）は、画面を作るときに決める。
+追加のたびに Session 内の Recipe を1つ作り、同じ品目の SessionItem は使い回す。
 
 ## AI / ML
 
@@ -237,8 +251,11 @@ PoC は完了済み。
 - Recipe の写真に関する未決定事項（詳細は [photo.md](photo.md) 参照）
 - Recipe 削除機能の実装時、編集画面からの保存によって削除済み Recipe を再作成しないようにするか。現時点では決めていない。今の実装は新規作成と同一の `save` メソッドで上書き保存する構成となっている
 - 変更がない状態での保存要求時にも永続化処理を行うかどうか。現時点では無条件で保存する実装となっており、将来のサーバー同期導入時に方針を決定する
-- Item の表示名の一致判定（検索の部分一致、作成時の重複検知の完全一致）をどこで行うか。現時点では、どちらも Repository から全件を読み込み、UseCase で絞り込んでいる。Recipe の作成・編集 UseCase も、材料の新しい表示名を既存の Item と照らすために、Item を全件読み込んでいる。データ層の実装時に、表示名を Repository へ渡す形へ移すかを、検索と作成で揃えて決める。Web 版では全件の通信が重くなること、SQLite の `LIKE` は英字の大文字・小文字を区別せず `%` や `_` のエスケープも必要なことを踏まえる。移した場合も、入力の正規化と空入力の扱いは UseCase に残す。あわせて、同じ表示名の Item の作成が同時に行われた場合の重複を、データ層でどう防ぐかも決める（Room の `@Transaction` で足りるか、一意制約が要るかなど）
-- Recipe の保存時に既存の Item を使ったことを、材料の行単位で返す必要があるか。現時点では、使った既存の Item の一覧だけを返している。UI の実装時に確認する
+- Item の表示名の一致判定（検索の部分一致、作成時の重複検知の完全一致）をどこで行うか。現時点では、どちらも Repository から全件を読み込み、UseCase で絞り込んでいる。Recipe の作成・編集と Session への Recipe の追加の UseCase も、材料の新しい表示名を既存の Item と照らすために、Item を全件読み込んでいる。表示名の一致の規則（何を同じ名前とみなすか）を domain に置くかも、あわせて決める。データ層の実装時に、表示名を Repository へ渡す形へ移すかを、検索と作成で揃えて決める。Web 版では全件の通信が重くなること、SQLite の `LIKE` は英字の大文字・小文字を区別せず `%` や `_` のエスケープも必要なことを踏まえる。移した場合も、入力の正規化と空入力の扱いは UseCase に残す。あわせて、同じ表示名の Item の作成が同時に行われた場合の重複を、データ層でどう防ぐかも決める（Room の `@Transaction` で足りるか、一意制約が要るかなど）
+- Recipe の保存時や Session への Recipe の追加時に既存の Item を使ったことを、材料の行単位で返す必要があるか。現時点では、使った既存の Item の一覧だけを返している。UI の実装時に確認する
+- domain の不変条件の守り方。今は生成時に `require` で例外を投げているが、クラッシュを防ぐため、生成時に null（理由を区別したい場合は sealed interface の失敗型）を返す形に置き換える方針とし、次の作業で行う。UI から呼ばれうる `Quantity.of` や、桁あふれで例外を投げる `Quantity` の計算も対象に含める。Arrow などのライブラリは今は使わない。値をデフォルト値に吸収するのは、その値の意味が仕様で決まっている場合（空白だけのメモをメモなしとする、など）に限る。想定外のデータ（保存先から読み戻した値が不変条件を満たさない、など）のログはデータ層で残す。ログの仕組みはデータ層の実装時に決める
+- 同じ端末で Session への追加が同時に走った場合（連打など）の扱い。UseCase は進行中の Session を読んでから保存するため、片方の追加が失われるか、データ層の一意制約で失敗しうる。データ層の実装時に決める
+- UseCase の結果を画面向けに変換する層を設けるか（Presentation の層を挟むか、ViewModel が直接扱うか）。UI の実装時に決める
 - 別名（alias）の具体的な永続化構造
 - SAME / NOT_SAME 判定に対するフィードバックの保存形式
 - AI 用の interface の名前と、機能フラグ（feature flag）の構造
