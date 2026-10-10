@@ -8,6 +8,7 @@ import com.example.recipe_deck.domain.amount.Multiplier
 import com.example.recipe_deck.domain.amount.Quantity
 import com.example.recipe_deck.domain.amount.QuantityNotation
 import com.example.recipe_deck.domain.item.ItemId
+import com.example.recipe_deck.domain.item.ItemReference
 import com.example.recipe_deck.domain.recipe.RecipeId
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
@@ -18,7 +19,11 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
 class ShoppingSessionTest {
-    private val greenOnion = SessionItem(SessionItemId("session-green-onion"), ItemId("green-onion"), manualAddition = null)
+    private val greenOnion = SessionItem(
+        SessionItemId("session-green-onion"),
+        ItemReference.Registered(ItemId("green-onion")),
+        manualAddition = null,
+    )
 
     private fun mapoTofu(vararg items: SessionRecipeItem) = SessionRecipe(
         id = SessionRecipeId("session-mapo-tofu"),
@@ -76,7 +81,7 @@ class ShoppingSessionTest {
 
     @Test
     fun 同じItemのSessionItemを複数持てない() {
-        val duplicated = SessionItem(SessionItemId("session-green-onion-2"), greenOnion.itemId, ManualAddition(amount = null))
+        val duplicated = SessionItem(SessionItemId("session-green-onion-2"), greenOnion.item, ManualAddition(amount = null))
 
         assertFailsWith<IllegalArgumentException> {
             session(recipes = persistentListOf(mapoTofu(requires(greenOnion))), items = persistentListOf(greenOnion, duplicated))
@@ -84,8 +89,32 @@ class ShoppingSessionTest {
     }
 
     @Test
+    fun Session限定の品目をSessionItemとして持てる() {
+        val doubanjiang = SessionItem(SessionItemId("session-doubanjiang"), ItemReference.Unregistered("豆板醤"), manualAddition = null)
+
+        val session = session(recipes = persistentListOf(mapoTofu(requires(doubanjiang))), items = persistentListOf(doubanjiang))
+
+        assertEquals(ItemReference.Unregistered("豆板醤"), session.items.single().item)
+    }
+
+    @Test
+    fun 同じ表示名のSession限定の品目を複数持てない() {
+        val doubanjiang = SessionItem(SessionItemId("session-doubanjiang"), ItemReference.Unregistered("豆板醤"), ManualAddition(amount = null))
+        val duplicated = doubanjiang.copy(id = SessionItemId("session-doubanjiang-2"))
+
+        assertFailsWith<IllegalArgumentException> { session(items = persistentListOf(doubanjiang, duplicated)) }
+    }
+
+    @Test
+    fun 表示名が空白だけのSession限定の品目は作れない() {
+        assertFailsWith<IllegalArgumentException> {
+            SessionItem(SessionItemId("session-blank"), ItemReference.Unregistered(" "), ManualAddition(amount = null))
+        }
+    }
+
+    @Test
     fun 同じSessionItemのIDを重複して持てない() {
-        val tofu = SessionItem(greenOnion.id, ItemId("tofu"), ManualAddition(amount = null))
+        val tofu = SessionItem(greenOnion.id, ItemReference.Registered(ItemId("tofu")), ManualAddition(amount = null))
         val manualGreenOnion = greenOnion.copy(manualAddition = ManualAddition(amount = null))
 
         assertFailsWith<IllegalArgumentException> { session(items = persistentListOf(manualGreenOnion, tofu)) }
