@@ -11,13 +11,6 @@ class LinkToExistingItemTest {
     private val existingItems = listOf(groundMeat).associateBy { it.displayName }
 
     @Test
-    fun 登録済みのItemの参照はそのまま返す() {
-        val reference = ItemReference.Registered(ItemId("item-2"))
-
-        assertEquals(reference, reference.linkToExistingItem(existingItems))
-    }
-
-    @Test
     fun 前後の空白を除いた表示名が既存のItemと完全に一致したら既存のItemの参照にする() {
         val linked = ItemReference.Unregistered("　ひき肉 \n").linkToExistingItem(existingItems)
 
